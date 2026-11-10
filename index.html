@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>英単語トレーナー</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#202638;background:#f4f6fb}
+*{box-sizing:border-box}body{margin:0;padding:22px;display:flex;justify-content:center}
+main{width:min(720px,100%);background:white;border-radius:22px;padding:24px;box-shadow:0 12px 40px #1c2b4a14}
+h1{margin:0 0 5px;font-size:26px}.sub{color:#68738a;margin:0 0 22px}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}.stat{background:#f0f3fa;padding:10px 14px;border-radius:12px;font-size:14px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+button,select{border:0;border-radius:12px;padding:12px 16px;font-size:15px;cursor:pointer}
+button.primary{background:#315ce8;color:white}button.secondary{background:#edf1fb;color:#263657}
+button:disabled{opacity:.45;cursor:not-allowed}
+.card{background:linear-gradient(145deg,#f4f7ff,#eef2ff);border-radius:20px;padding:34px 18px;text-align:center;min-height:245px;display:flex;flex-direction:column;justify-content:center}
+.word{font-size:clamp(38px,8vw,58px);font-weight:750;letter-spacing:.01em}.phonetic{color:#68738a;font-size:17px;margin-top:4px}
+.meaning{font-size:25px;font-weight:650;margin-top:20px;min-height:38px}.hidden{visibility:hidden}
+.hint{font-size:13px;color:#778198;margin-top:12px}
+.progress{height:9px;background:#e9edf5;border-radius:99px;overflow:hidden;margin:18px 0}.bar{height:100%;background:#315ce8;width:0}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+label{font-size:14px;color:#536078}input[type=checkbox]{width:18px;height:18px;vertical-align:middle}
+.quiz-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.quiz-options button{background:#f0f3fa;text-align:left}.quiz-options button.correct{background:#d9f7e6}.quiz-options button.wrong{background:#ffe0e0}
+section{margin-top:20px}.small{font-size:13px;color:#748097}
+@media(max-width:480px){body{padding:10px}main{padding:17px}.quiz-options{grid-template-columns:1fr}}
+</style>
+</head>
+<body><main>
+<h1>📚 英単語トレーナー</h1>
+<p class="sub">毎日少しずつ、よく使う英単語を身につけよう。</p>
+<div class="stats">
+ <div class="stat">覚えた単語：<b id="learnedCount">0</b></div>
+ <div class="stat">今日の学習：<b id="todayCount">0</b></div>
+ <div class="stat">全単語：<b id="totalCount">100</b></div>
+</div>
+<div class="row">
+ <label>表示スピード　
+ <select id="speed"><option value="2">2秒</option><option value="3" selected>3秒</option></select></label>
+ <label>1日の目標　
+ <select id="goal"><option>30</option><option selected>50</option><option>100</option></select> 語</label>
+</div>
+<div class="progress"><div class="bar" id="bar"></div></div>
+<div class="card">
+ <div class="word" id="word">準備OK？</div>
+ <div class="phonetic" id="phonetic">スタートを押してね</div>
+ <div class="meaning hidden" id="meaning">日本語訳</div>
+ <div class="hint" id="hint">英単語 → 発音 → 日本語訳</div>
+</div>
+<div class="controls">
+ <button class="primary" id="start">▶ スタート</button>
+ <button class="secondary" id="pause" disabled>一時停止</button>
+ <button class="secondary" id="speak" disabled>🔊 もう一度聞く</button>
+</div>
+<div class="row">
+ <label><input type="checkbox" id="known"> この単語を覚えた</label>
+ <div class="controls" style="margin:0">
+  <button class="secondary" id="prev">← 前へ</button>
+  <button class="secondary" id="next">次へ →</button>
+ </div>
+</div>
+<section>
+ <div class="row">
+  <b>復習・クイズ</b>
+  <span class="small">覚えていない単語を優先して復習</span>
+ </div>
+ <div class="controls">
+  <button class="secondary" id="review">未習得だけ復習</button>
+  <button class="secondary" id="all">全単語に戻る</button>
+  <button class="secondary" id="quiz">4択クイズ</button>
+ </div>
+ <div id="quizArea"></div>
+</section>
+<p class="small">※音声は端末・ブラウザに搭載された英語音声を使用します。学習記録はこのブラウザに保存されます。</p>
+</main>
+<script>
+const words=[
+["significant","重要な、かなりの","sɪɡˈnɪfɪkənt"],
+["acquire","習得する、獲得する","əˈkwaɪər"],
+["maintain","維持する","meɪnˈteɪn"],
+["approach","方法、取り組む","əˈproʊtʃ"],
+["inevitable","避けられない","ɪnˈevɪtəbəl"],
+["consequence","結果、影響","ˈkɑːnsəkwens"],
+["establish","設立する、確立する","ɪˈstæblɪʃ"],
+["concern","懸念、関心","kənˈsɜːrn"],
+["substantial","かなりの、相当な","səbˈstænʃəl"],
+["demonstrate","示す、実証する","ˈdemənstreɪt"],
+["contribute","貢献する、寄与する","kənˈtrɪbjuːt"],
+["determine","決定する、特定する","dɪˈtɜːrmɪn"],
+["indicate","示す、指し示す","ˈɪndɪkeɪt"],
+["occur","起こる、発生する","əˈkɜːr"],
+["require","必要とする、要求する","rɪˈkwaɪər"],
+["influence","影響を与える、影響","ˈɪnfluəns"],
+["involve","含む、巻き込む","ɪnˈvɑːlv"],
+["considerable","かなりの、相当な","kənˈsɪdərəbəl"],
+["potential","可能性、潜在的な","pəˈtenʃəl"],
+["specific","具体的な、特定の","spəˈsɪfɪk"],
+["evidence","証拠、根拠","ˈevɪdəns"],
+["analysis","分析","əˈnæləsɪs"],
+["factor","要因、要素","ˈfæktər"],
+["impact","影響、衝撃","ˈɪmpækt"],
+["policy","政策、方針","ˈpɑːləsi"],
+["issue","問題、論点","ˈɪʃuː"],
+["source","情報源、出典","sɔːrs"],
+["benefit","利益、恩恵","ˈbenɪfɪt"],
+["decline","減少する、断る","dɪˈklaɪn"],
+["increase","増加する、増加","ɪnˈkriːs"],
+["reduce","減らす、縮小する","rɪˈduːs"],
+["expand","拡大する","ɪkˈspænd"],
+["affect","影響を与える","əˈfekt"],
+["respond","反応する、返答する","rɪˈspɑːnd"],
+["prevent","防ぐ、予防する","prɪˈvent"],
+["enable","可能にする","ɪˈneɪbəl"],
+["achieve","達成する","əˈtʃiːv"],
+["recognize","認識する、評価する","ˈrekəɡnaɪz"],
+["suggest","提案する、示唆する","səˈdʒest"],
+["assume","仮定する、思い込む","əˈsuːm"],
+["likely","ありそうな","ˈlaɪkli"],
+["available","利用できる、入手可能な","əˈveɪləbəl"],
+["appropriate","適切な","əˈproʊpriət"],
+["aware","気づいている","əˈwer"],
+["various","さまざまな","ˈveriəs"],
+["essential","不可欠な、本質的な","ɪˈsenʃəl"],
+["complex","複雑な","ˈkɑːmpleks"],
+["specific","明確な、特定の","spəˈsɪfɪk"],
+["particular","特定の、特別な","pərˈtɪkjələr"],
+["relevant","関連のある","ˈreləvənt"],
+["accurate","正確な","ˈækjərət"],
+["effective","効果的な","ɪˈfektɪv"],
+["efficient","効率的な","ɪˈfɪʃənt"],
+["reliable","信頼できる","rɪˈlaɪəbəl"],
+["frequent","頻繁な","ˈfriːkwənt"],
+["temporary","一時的な","ˈtempəreri"],
+["permanent","永久的な","ˈpɜːrmənənt"],
+["gradually","徐々に","ˈɡrædʒuəli"],
+["eventually","最終的に","ɪˈventʃuəli"],
+["particularly","特に","pərˈtɪkjələrli"],
+["approximately","およそ","əˈprɑːksɪmətli"],
+["despite","〜にもかかわらず","dɪˈspaɪt"],
+["whereas","一方で、〜であるのに対し","werˈæz"],
+["therefore","したがって","ˈðerfɔːr"],
+["otherwise","さもなければ","ˈʌðərwaɪz"],
+["moreover","さらに、そのうえ","mɔːrˈoʊvər"],
+["nevertheless","それにもかかわらず","ˌnevərðəˈles"],
+["although","〜だけれども","ɔːlˈðoʊ"],
+["significantly","大幅に、著しく","sɪɡˈnɪfɪkəntli"],
+["circumstance","状況、事情","ˈsɜːrkəmstæns"],
+["approach","取り組み方、接近","əˈproʊtʃ"],
+["attitude","態度、考え方","ˈætɪtuːd"],
+["behavior","行動、振る舞い","bɪˈheɪvjər"],
+["environment","環境","ɪnˈvaɪrənmənt"],
+["community","地域社会、共同体","kəˈmjuːnəti"],
+["development","発展、開発","dɪˈveləpmənt"],
+["opportunity","機会","ˌɑːpərˈtuːnəti"],
+["responsibility","責任","rɪˌspɑːnsəˈbɪləti"],
+["resource","資源、手段","ˈriːsɔːrs"],
+["strategy","戦略、方策","ˈstrætədʒi"],
+["challenge","課題、難題","ˈtʃælɪndʒ"],
+["solution","解決策","səˈluːʃən"],
+["estimate","推定する、見積もる","ˈestɪmeɪt"],
+["reveal","明らかにする","rɪˈviːl"],
+["claim","主張する、主張","kleɪm"],
+["observe","観察する、気づく","əbˈzɜːrv"],
+["respond","対応する、返答する","rɪˈspɑːnd"],
+["obtain","得る、入手する","əbˈteɪn"],
+["occur","発生する","əˈkɜːr"],
+["participate","参加する","pɑːrˈtɪsɪpeɪt"],
+["improve","改善する、向上させる","ɪmˈpruːv"],
+["recommend","勧める、推薦する","ˌrekəˈmend"],
+["represent","表す、代表する","ˌreprɪˈzent"],
+["compare","比較する","kəmˈper"],
+["identify","特定する、見分ける","aɪˈdentɪfaɪ"],
+["investigate","調査する","ɪnˈvestɪɡeɪt"],
+["recognition","認識、評価","ˌrekəɡˈnɪʃən"],
+["opinion","意見","əˈpɪnjən"],
+["perspective","視点、見方","pərˈspektɪv"],
+["conclusion","結論","kənˈkluːʒən"],
+["contribute","寄与する","kənˈtrɪbjuːt"],
+["sustainable","持続可能な","səˈsteɪnəbəl"],
+["economic","経済の","ˌiːkəˈnɑːmɪk"],
+["global","世界的な","ˈɡloʊbəl"]
+];
+const $=id=>document.getElementById(id);
+let index=0, pool=words.map((_,i)=>i), timer=null, running=false, revealed=false;
+let learned=new Set(JSON.parse(localStorage.getItem("evt_learned")||"[]"));
+let todayKey=new Date().toLocaleDateString("ja-JP"), daily=JSON.parse(localStorage.getItem("evt_daily")||"{}");
+if(daily.day!==todayKey) daily={day:todayKey,count:0};
+$("totalCount").textContent=words.length;
+function save(){localStorage.setItem("evt_learned",JSON.stringify([...learned]));localStorage.setItem("evt_daily",JSON.stringify(daily));}
+function stats(){$("learnedCount").textContent=learned.size;$("todayCount").textContent=daily.count;$("bar").style.width=Math.min(100,daily.count/Number($("goal").value)*100)+"%";}
+function say(){let w=words[pool[index]];if(!w)return; speechSynthesis.cancel();let u=new SpeechSynthesisUtterance(w[0]);u.lang="en-US";u.rate=.88;let vs=speechSynthesis.getVoices();let v=vs.find(x=>x.lang==="en-US");if(v)u.voice=v;speechSynthesis.speak(u);}
+function show(){let w=words[pool[index]];if(!w){$("word").textContent="復習完了！";$("phonetic").textContent="";$("meaning").textContent="";return}
+ revealed=false;$("word").textContent=w[0];$("phonetic").textContent="/"+w[2]+"/";$("meaning").textContent=w[1];$("meaning").classList.add("hidden");$("hint").textContent="まず英単語を見て、意味を思い浮かべよう";$("known").checked=learned.has(pool[index]);$("speak").disabled=false;$("pause").disabled=false;
+ if(running){say();setTimeout(()=>{if(running){$("meaning").classList.remove("hidden");revealed=true;$("hint").textContent="意味を確認して、覚えたらチェック！"}},1000);timer=setTimeout(()=>{if(running)move(1)},Number($("speed").value)*1000)}
+ stats();}
+function stop(){running=false;clearTimeout(timer);speechSynthesis.cancel();$("pause").textContent="再開";$("pause").disabled=false}
+function move(d){clearTimeout(timer);speechSynthesis.cancel();index=(index+d+pool.length)%pool.length;show();}
+$("start").onclick=()=>{running=true;$("start").textContent="▶ 再スタート";$("pause").textContent="一時停止";show()};
+$("pause").onclick=()=>{if(running)stop();else{running=true;show()}};
+$("speak").onclick=say;$("next").onclick=()=>move(1);$("prev").onclick=()=>move(-1);
+$("known").onchange=e=>{let n=pool[index];if(e.target.checked)learned.add(n);else learned.delete(n);save();stats()};
+$("speed").onchange=()=>{if(running)show()};$("goal").onchange=stats;
+$("review").onclick=()=>{stop();pool=words.map((_,i)=>i).filter(i=>!learned.has(i));index=0;show()};
+$("all").onclick=()=>{stop();pool=words.map((_,i)=>i);index=0;show()};
+$("quiz").onclick=()=>{stop();let correct=Math.floor(Math.random()*words.length),opts=[correct];while(opts.length<4){let n=Math.floor(Math.random()*words.length);if(!opts.includes(n))opts.push(n)}opts.sort(()=>Math.random()-.5);$("quizArea").innerHTML='<p><b>'+words[correct][0]+'</b> の意味は？</p><div class="quiz-options">'+opts.map(n=>'<button data-n="'+n+'">'+words[n][1]+'</button>').join("")+'</div><p id="feedback" class="small"></p>';document.querySelectorAll(".quiz-options button").forEach(b=>b.onclick=()=>{let ok=Number(b.dataset.n)===correct;$("feedback").textContent=ok?"正解！ 🎉":"おしい！ 正解は「"+words[correct][1]+"」";b.classList.add(ok?"correct":"wrong");if(ok){learned.add(correct);save();stats()}})};
+speechSynthesis.getVoices();show();stats();
+</script></body></html>
